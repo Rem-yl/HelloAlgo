@@ -125,7 +125,7 @@ func NewLinkList(vals []int) *ListNode {
 	for i := 1; i < len(vals); i++ {
 		newNode := NewLinkNode(vals[i])
 		curr.Next = newNode
-		curr = newNode
+		curr = curr.Next
 	}
 
 	return head
