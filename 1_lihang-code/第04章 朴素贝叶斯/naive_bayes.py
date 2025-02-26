@@ -26,7 +26,7 @@ class GassianNB:
         self.classes = None
         self.class_prior = {}   # 计算训练集中类别的先验概率 P(y), 使用极大似然估计
         self.class_mean = {}
-        self.class_var = {}
+        self.class_var = 0.0
 
     def train(self, X: np.ndarray, y: np.ndarray):
         self.classes = np.unique(y)
@@ -34,7 +34,7 @@ class GassianNB:
             X_c = X[y == c]
             self.class_prior[c] = len(X_c) / X.shape[0]
             self.class_mean[c] = np.mean(X_c, axis=0)   # 对高斯分布均值的极大似然估计
-            self.class_var[c] = np.var(X_c, axis=0)  # 对方差的极大似然估计
+        self.class_var = np.var(X, axis=0)  # 每个类别服从于不同均值但相同方差的高斯分布
 
     @staticmethod
     def gaussian_pdf(x, mean, var):
@@ -51,7 +51,7 @@ class GassianNB:
         for c in self.classes:
             p_yc = np.log(self.class_prior[c])
             likelihood = np.sum(np.log(GassianNB.gaussian_pdf(
-                x, self.class_mean[c], self.class_var[c])))   # 将每个特征的likelihood加起来
+                x, self.class_mean[c], self.class_var)))   # 将每个特征的likelihood加起来
             y_pred[c] = p_yc + likelihood
 
         return max(y_pred, key=y_pred.get)
