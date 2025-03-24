@@ -230,8 +230,104 @@ class HMM:
 2. M步: 极大化Q函数
     $$
     \begin{aligned}
-    a_{ij} &= \frac{\sum_{t=1}}{T-1} \epsilon_t(i,j) \\
+    a_{ij} &= \frac{\sum_{t=1}^{T-1} \epsilon_t(i,j)}{\sum_{t=1}^{T-1} \gamma_t(j)} \\
     b_j(k) &= \frac{\sum_{t=1,o_t=v_k}^T \gamma_t(j)}{\sum_{t=1}^T \gamma_t(j)} \\
     \pi_i &= \gamma_(i)
     \end{aligned}
     $$
+
+```python
+def _E_step(self, O: np.ndarray):
+    T = O.shape[0]
+
+    alpha = self._forward(O)
+    beta = self._backward(O)
+
+    # 计算 P(O | lambda)（观测序列的概率）
+    P_O_given_lambda = np.sum(alpha[-1, :])
+
+    # 计算 gamma（状态的后验概率）
+    self.gamma = (alpha * beta) / P_O_given_lambda  # (T, N) 直接矩阵运算
+
+    # 计算 epsilon（状态转移概率）
+    numer = alpha[:-1, :, None] * self.A[None, :, :] * self.B[:, O[1:]].T[None, :, :] * beta[1:, None, :]
+    denom = np.sum(numer, axis=(1, 2), keepdims=True)
+    self.epsilon = numer / denom  # (T-1, N, N)
+
+def _M_step(self, O: np.ndarray):
+    """
+    执行 M 步骤，更新 HMM 参数 A, B, pi
+    """
+    M = self.B.shape[1]  # 观测符号的数量
+    T = O.shape[0]        # 观察序列长度
+
+    # 更新初始状态概率 pi
+    self.pi = self.gamma[0, :]
+
+    # 更新状态转移矩阵 A
+    self.A = np.sum(self.epsilon[:-1, :, :], axis=0) / np.sum(self.gamma[:-1, :], axis=0)[:, None]
+
+    # 更新观测概率矩阵 B
+    self.B = np.zeros((self.N, M))
+
+    for j in range(self.N):  # 遍历所有隐藏状态
+        for k in range(M):   # 遍历所有可能的观测值
+            mask = (O == k)  # 找到 O_t = k 的时刻
+            self.B[j, k] = np.sum(self.gamma[mask, j]) / np.sum(self.gamma[:, j])
+
+    # 避免 B 矩阵中出现 0，替换为 eps
+    self.B[self.B == 0] = self.eps
+```
+
+## 预测算法(维特比算法)
+输入: 模型$\lambda=(A,B,\pi)$和观测序列$O$      
+输出: 最优状态路径$I^* = (i_1^*, i_2^*, \dots, i_T^*)$
+
+1. 初始化
+    $$
+    \delta_1(i) = \pi_i b_i(o_1) \\
+    \psi_1(i) = 0
+    $$
+
+2. 递推
+    $$
+    \delta_t(i) = \max_{1 \leq j \leq N} [\delta_{t-1}(j) a_{ji}] b_i(o_t) \\
+
+    \psi_t(i) = \argmax_{1 \leq j \leq N} [\delta_{t-1}(j) a_{ji}]
+    $$
+
+3. 终止
+    $$
+    P^* = \max_{1 \leq i \leq N} \delta_T(i) \\
+    i_T^* = \argmax_{1 \leq i \leq N} [\delta_T(i)]
+    $$
+
+4. 最优路径回溯
+    $$
+    i_t^* = \psi_{t+1}(i_{t+1}^*)
+    $$
+
+```python
+def predict(self, O: np.ndarray):
+    T = O.shape[0]
+    delta = np.zeros((T, self.N))
+    psi = np.zeros((T, self.N), dtype=int)
+
+    delta[0, :] = self.pi * self.B[:, O[0]]
+    psi[0, :] = 0
+
+    for t in range(1, T):
+        for j in range(self.N):
+            prob = delta[t-1, :] * self.A[:, j]
+            psi[t, j] = np.argmax(prob)
+            delta[t, j] = np.max(prob) * self.B[j, O[t]]
+
+    path = np.zeros(T, dtype=int)
+    path[-1] = np.argmax(delta[T-1, :])
+
+    for t in range(T-2, -1, -1):
+        path[t] = psi[t+1, path[t+1]]
+
+    return path
+```
+

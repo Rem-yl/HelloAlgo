@@ -68,4 +68,16 @@ def test1():
     print(res)
 
 
-test1()
+def test2():
+    A = np.array([[0.5, 0.2, 0.3], [0.3, 0.5, 0.2], [0.2, 0.3, 0.5]])
+    B = np.array([[0.5, 0.5], [0.4, 0.6], [0.7, 0.3]])
+    pi = np.array([0.2, 0.4, 0.4])
+    O = np.array([0, 1, 0])
+
+    model = HMM(A, B, pi)
+    path = model.predict(O)
+    print(path)
+
+
+# test1()
+test2()
