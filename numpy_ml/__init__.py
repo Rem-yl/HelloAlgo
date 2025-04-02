@@ -2,3 +2,4 @@
 from . import gmm
 from . import utils
 from . import hmm
+from . import nn
