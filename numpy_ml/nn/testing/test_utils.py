@@ -13,3 +13,12 @@ def test_miniBatch():
         shapes.append(data.shape[0])
 
     assert shapes == [256, 256, 256, 232]
+
+
+def test_list2batch():
+    x1 = [1, 2]
+    x1_array = list2batch(x1)
+    assert x1_array.ndim == 2
+    x2 = [[[1, 2], [1, 2]], [[1, 2], [1, 2]], [[1, 2], [1, 2]]]
+    x2_array = list2batch(x2)
+    assert x2_array.ndim == 3

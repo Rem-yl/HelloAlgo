@@ -10,8 +10,8 @@ class ActivationBase(ABC):
     def __init__(self, **kwargs):
         super().__init__()
 
-    def __call__(self, x: np.ndarray):
-        return self.forward(x)
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
     @abstractmethod
     def forward(self, x: np.ndarray):
