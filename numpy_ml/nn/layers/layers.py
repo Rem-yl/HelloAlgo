@@ -83,4 +83,92 @@ class Linear(LayerBase):
         - W.shape: [out_feats, in_feats]
         - b.shape: [1, out_feats]
     """
-    pass
+
+    def __init__(self, in_feat: int, out_feat: int, init=None, optimizer=None):
+        self.in_feat = in_feat
+        self.out_feat = out_feat
+        self.init = init
+        self.parameters = {"W": None, "b": None}
+        super().__init__(optimizer)
+
+        self._init_params()
+
+    def _init_params(self):
+        W = np.random.randn(self.out_feat, self.in_feat)
+        b = np.zeros((1, self.out_feat))
+
+        self.parameters = {"W": W, "b": b}
+        self.derived_variables = {"out": None}
+        self.gradients = {
+            "W": np.zeros_like(W),
+            "b": np.zeros_like(b),
+        }
+
+    @property
+    def hyperparameters(self):
+        return {
+            "layer": self.__class__.__name__,
+            "param_init": self.init,
+            "in_feat": self.in_feat,
+            "out_feat": self.out_feat,
+            "optimizer":
+                {
+                    "cache": self.optimizer.cache,
+                    "hyperparameters": self.optimizer.hyperparameters,
+                },
+        }
+
+    def _check_input(self, x: np.ndarray):
+        if not isinstance(x, np.ndarray):
+            raise TypeError("Input type must be numpy array")
+
+        if x.ndim <= 1:
+            raise ValueError("Input dim must > 1")
+
+    def forward(self, X: np.ndarray, retain_derived=True) -> np.ndarray:
+        self._check_input(X)
+
+        out = self._fwd(X)
+
+        if retain_derived:
+            self.X = X
+            self.derived_variables["out"] = out
+
+        return out
+
+    def _fwd(self, X: np.ndarray) -> np.ndarray:
+        W = self.parameters["W"]
+        b = self.parameters["b"]
+
+        out = X @ W.T + b
+
+        return out
+
+    def _check_grad(self, dldy: np.ndarray, out: np.ndarray):
+        self._check_input(dldy)
+        if dldy.shape != out.shape:
+            raise ValueError(f"grad.shape: {dldy.shape} != out.shape: {out.shape}")
+
+    def backward(self, dldy: np.ndarray, retain_grads=True):
+        assert self.trainable, f"{self.__class__.__name__} is frozen"
+
+        out = self.derived_variables["out"]
+        self._check_grad(dldy, out)
+
+        x = self.X
+        dx, dw, db = self._bwd(dldy, x)
+
+        if retain_grads:
+            self.gradients["W"] += dw
+            self.gradients["b"] += db
+
+        return dx
+
+    def _bwd(self, dldy: np.ndarray, x: np.ndarray):
+        W = self.parameters["W"]
+
+        dx = dldy @ W
+        dw = dldy.T @ x
+        db = dldy.sum(axis=0, keepdims=True)
+
+        return dx, dw, db
