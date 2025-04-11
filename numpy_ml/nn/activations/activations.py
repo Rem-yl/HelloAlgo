@@ -2,6 +2,7 @@ from math import erf
 from abc import ABC, abstractmethod
 
 import numpy as np
+from ..utils import sigmoid
 
 eps = np.finfo(float).eps
 
@@ -14,12 +15,12 @@ class ActivationBase(ABC):
         return self.forward(*args, **kwargs)
 
     @abstractmethod
-    def forward(self, x: np.ndarray):
+    def forward(self, *args, **kwargs):
         """ 抽象的前向传播方法 """
         raise NotImplementedError
 
     @abstractmethod
-    def backward(self, x: np.ndarray):
+    def backward(self, *args, **kwargs):
         """ 抽象的反向传播方法 """
         raise NotImplementedError
 
@@ -29,7 +30,14 @@ class Sigmoid(ActivationBase):
         super().__init__()
 
     def __str__(self):
-        return r"Sigmoid"
+        return self.__class__.__name__
+
+    def _check_input(self, x: np.ndarray):
+        if not isinstance(x, np.ndarray):
+            raise TypeError("Input type must be numpy array")
+
+        if x.ndim <= 1:
+            raise ValueError("Input dim must > 1")
 
     def forward(self, x: np.ndarray):
         r"""
@@ -39,10 +47,9 @@ class Sigmoid(ActivationBase):
 
             \sigma(x_i) = \frac{1}{1 + e^{-x_i}}
         """
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
+        self._check_input(x)
 
-        return 1.0 / (1.0 + np.exp(-x))
+        return sigmoid(x)
 
     def backward(self, x: np.ndarray):
         r"""
@@ -52,8 +59,7 @@ class Sigmoid(ActivationBase):
 
             \frac{\partial \sigma}{\partial x_i} = \sigma(x_i) (1 - \sigma(x_i))
         """
-        if x.ndim == 1:
-            x = x.reshape(1, -1)
+        self._check_input(x)
 
         fn_x = self.forward(x)
         return fn_x * (1 - fn_x)
@@ -67,6 +73,7 @@ class Sigmoid(ActivationBase):
             \frac{\partial^2 \sigma}{\partial x_i^2} =
                 \frac{\partial \sigma}{\partial x_i} (1 - 2 \sigma(x_i))
         """
+        self._check_input(x)
         fn_x = self.forward(x)
         return fn_x * (1 - fn_x) * (1 - 2 * fn_x)
 

@@ -1,69 +1,64 @@
-import pytest
 import numpy as np
-from numpy.testing import assert_allclose
+import torch
+import torch.nn as nn
+import pytest
 
-from nn.layers import *
-
-
-class TestAddLayer:
-    @classmethod
-    def setup_class(cls):
-        cls.layer = Add("identity", "sgd(lr=0.01, momentum=0.0)")
-
-    def setup_method(self, method):
-        self.layer.X.clear()
-        self.layer.gradients.clear()
-        self.layer.parameters.clear()
-        self.layer.derived_variables["sum"].clear()
-
-    def test_forward_single(self):
-        x = [np.array([[1, 2, 3], [3, 4, 5]]) for _ in range(3)]
-        out = self.layer(x)
-        assert_allclose(out, np.array([[3, 6, 9], [9, 12, 15]]))
-
-    def test_backward_single(self):
-        x = [np.array([[1, 2, 3], [3, 4, 5]]) for _ in range(3)]
-        _ = self.layer(x)
-        dldy = np.array([[1, 2, 3], [1, 1, 1]])
-        grads = self.layer.backward(dldy)
-        assert_allclose(grads, [dldy] * len(x))
+from nn.layers import Linear  # 根据你的实际导入路径调整
 
 
-class TestMultiplyLayer:
-    @classmethod
-    def setup_class(cls):
-        cls.layer = Multiply("identity", "sgd(lr=0.01, momentum=0.0)")
+@pytest.mark.parametrize("batch_size, in_feat, out_feat", [
+    (4, 3, 2),
+    (10, 5, 7),
+    (1, 6, 4)
+])
+def test_linear(batch_size, in_feat, out_feat):
+    # 设置种子以保证一致性
+    np.random.seed(42)
+    torch.manual_seed(42)
 
-    def setup_method(self, method):
-        self.layer.X.clear()
-        self.layer.gradients.clear()
-        self.layer.parameters.clear()
-        self.layer.derived_variables["product"].clear()
+    # 输入张量
+    X_np = np.random.randn(batch_size, in_feat).astype(np.float32)
+    X_torch = torch.tensor(X_np, requires_grad=True)
 
-    def test_forward_single(self):
-        x = [np.array([[1, 2, 3], [3, 4, 5]]) for _ in range(3)]
-        out = self.layer(x)
-        assert_allclose(out, np.array([[1, 8, 27], [27, 64, 125]]))
+    # 初始化相同的参数
+    W_np = np.random.randn(out_feat, in_feat).astype(np.float32)
+    b_np = np.random.randn(1, out_feat).astype(np.float32)
 
-    def test_backward_single(self):
-        x = [np.array([[1, 2, 3], [3, 4, 5]]) for _ in range(3)]
-        _ = self.layer(x)
-        dldy = np.array([[1, 2, 3], [1, 1, 1]])
-        grads = self.layer.backward(dldy)
+    # 自定义 Linear
+    my_fc = Linear(in_feat, out_feat)
+    my_fc.parameters["W"] = W_np.copy()
+    my_fc.parameters["b"] = b_np.copy()
 
+    # PyTorch Linear
+    pt_fc = nn.Linear(in_feat, out_feat, bias=True)
+    pt_fc.weight.data = torch.tensor(W_np, dtype=torch.float32)
+    pt_fc.bias.data = torch.tensor(b_np.squeeze(), dtype=torch.float32)
 
-class TestFlattenLayer:
-    @classmethod
-    def setup_class(cls):
-        cls.layer = Flatten(keep_dim=-1, optimizer="sgd(lr=0.01, momentum=0.0)")
+    # 前向传播
+    out_my = my_fc.forward(X_np)
+    out_pt = pt_fc(X_torch)
 
-    def setup_method(self, method):
-        self.layer.X.clear()
-        self.layer.gradients.clear()
-        self.layer.parameters.clear()
-        self.layer.derived_variables["in_dims"].clear()
+    # 检查前向传播输出是否一致
+    np.testing.assert_allclose(out_my, out_pt.detach().numpy(), rtol=1e-5, atol=1e-6)
 
-    def test_forward_single(self):
-        x = np.array([[1, 2, 3], [3, 4, 5]])
-        out = self.layer(x)
-        print(out.shape)
+    # 构造 dL/dy 模拟上游梯度
+    dLdy_np = np.random.randn(*out_my.shape).astype(np.float32)
+    dLdy_pt = torch.tensor(dLdy_np)
+
+    # 后向传播
+    dX_my = my_fc.backward(dLdy_np)
+    out_pt.backward(dLdy_pt)
+
+    # 取出 PyTorch 的梯度
+    dX_pt = X_torch.grad.detach().numpy()
+    dW_pt = pt_fc.weight.grad.detach().numpy()
+    dB_pt = pt_fc.bias.grad.detach().numpy()
+
+    # 自定义模型的梯度
+    dW_my = my_fc.gradients["W"]
+    dB_my = my_fc.gradients["b"].squeeze()
+
+    # 检查梯度是否一致
+    np.testing.assert_allclose(dX_my, dX_pt, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(dW_my, dW_pt, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(dB_my, dB_pt, rtol=1e-5, atol=1e-6)

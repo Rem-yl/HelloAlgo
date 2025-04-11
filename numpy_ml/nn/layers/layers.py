@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
-
 import numpy as np
+from typing import Optional
+
+from ..optimizer import OptimizerBase
 
 
 class LayerBase(ABC):
@@ -9,17 +11,20 @@ class LayerBase(ABC):
     Y.shape: [Batch_size, *]
     """
 
-    def __init__(self, optimizer=None):
+    def __init__(self, optimizer: Optional[OptimizerBase] = None):
         """An abstract base class inherited by all neural network layers"""
         self.X: np.ndarray = None
         self.trainable = True
-        self.optimizer = None
+        self.optimizer = optimizer
 
         self.gradients = {}
         self.parameters = {}
         self.derived_variables = {}
 
         super().__init__()
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
     @abstractmethod
     def _init_params(self, *args, **kwargs):
@@ -60,9 +65,13 @@ class LayerBase(ABC):
         for k, v in self.gradients.items():
             self.gradients[k] = np.zeros_like(v)
 
-    def update(self):
-        # todo: 等跟 optimizer一起更新
-        pass
+    def update(self, cur_loss=None):
+        assert self.trainable, f"{self.__class__.__name__} is frozen"
+        self.optimizer.step()
+        for k, v in self.gradients.items():
+            if k in self.parameters:
+                self.parameters[k] = self.optimizer(self.parameters[k], v, k, cur_loss)
+        self.flush_gradients()
 
     def summary(self):
         return {
@@ -94,7 +103,7 @@ class Linear(LayerBase):
         self._init_params()
 
     def _init_params(self):
-        W = np.random.randn(self.out_feat, self.in_feat)
+        W = np.random.randn(self.out_feat, self.in_feat) * 0.001
         b = np.zeros((1, self.out_feat))
 
         self.parameters = {"W": W, "b": b}
@@ -102,6 +111,7 @@ class Linear(LayerBase):
         self.gradients = {
             "W": np.zeros_like(W),
             "b": np.zeros_like(b),
+            "x": None,
         }
 
     @property
@@ -155,12 +165,12 @@ class Linear(LayerBase):
         out = self.derived_variables["out"]
         self._check_grad(dldy, out)
 
-        x = self.X
-        dx, dw, db = self._bwd(dldy, x)
+        dx, dw, db = self._bwd(dldy, self.X)
 
         if retain_grads:
             self.gradients["W"] += dw
             self.gradients["b"] += db
+            self.gradients["x"] = dx
 
         return dx
 

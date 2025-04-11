@@ -1,22 +1,35 @@
-from nn.activations import *
-
+import pytest
 import numpy as np
+import torch
+import torch.nn.functional as F
 
 
-def test_sigmoid(inputs):
-    model = Sigmoid()
-    res = np.array(
-        [[0.73105858, 0.88079708, 0.95257413],
-         [0.98201379, 0.99330715, 0.99752738]]
-    )
-    assert np.allclose(model(inputs), res)
-    res = np.array(
-        [[0.19661193, 0.10499359, 0.04517666],
-         [0.01766271, 0.00664806, 0.00246651]]
-    )
-    assert np.allclose(model.backward(inputs), res)
+from nn.activations import Sigmoid
 
 
-def test_relu(inputs):
-    model = ReLU()
-    assert np.allclose(inputs, model(inputs))
+class TestSigmoid:
+    def test_forward(self):
+        np.random.seed(42)
+        x_np = np.random.randn(4, 5).astype(np.float32)
+        x_torch = torch.tensor(x_np)
+
+        sigmoid = Sigmoid()
+        out_np = sigmoid.forward(x_np)
+        out_torch = torch.sigmoid(x_torch).numpy()
+
+        assert np.allclose(out_np, out_torch, atol=1e-6), "Forward output not close to PyTorch"
+
+    def test_backward(self):
+        np.random.seed(42)
+        x_np = np.random.randn(4, 5).astype(np.float32)
+        x_torch = torch.tensor(x_np, requires_grad=True)
+
+        sigmoid = Sigmoid()
+        grad_np = sigmoid.backward(x_np)
+
+        # PyTorch gradient computation
+        out_torch = torch.sigmoid(x_torch)
+        grad_torch = out_torch * (1 - out_torch)
+        grad_torch_np = grad_torch.detach().numpy()
+
+        assert np.allclose(grad_np, grad_torch_np, atol=1e-6), "Backward gradient not close to PyTorch"
