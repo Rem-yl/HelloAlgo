@@ -20,19 +20,16 @@ def test_linear(batch_size, in_feat, out_feat):
     X_np = np.random.randn(batch_size, in_feat).astype(np.float32)
     X_torch = torch.tensor(X_np, requires_grad=True)
 
-    # 初始化相同的参数
-    W_np = np.random.randn(out_feat, in_feat).astype(np.float32)
-    b_np = np.random.randn(1, out_feat).astype(np.float32)
-
     # 自定义 Linear
     my_fc = Linear(in_feat, out_feat)
-    my_fc.parameters["W"] = W_np.copy()
-    my_fc.parameters["b"] = b_np.copy()
 
     # PyTorch Linear
     pt_fc = nn.Linear(in_feat, out_feat, bias=True)
-    pt_fc.weight.data = torch.tensor(W_np, dtype=torch.float32)
-    pt_fc.bias.data = torch.tensor(b_np.squeeze(), dtype=torch.float32)
+    pt_fc.weight.data = torch.tensor(my_fc.parameters["W"].data, dtype=torch.float32)
+    pt_fc.bias.data = torch.tensor(my_fc.parameters["b"].data.squeeze(), dtype=torch.float32)
+    np.testing.assert_allclose(my_fc.parameters["W"].data, pt_fc.weight.data.detach().numpy(),  rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(my_fc.parameters["b"].data.squeeze(),
+                               pt_fc.bias.data.detach().numpy(),  rtol=1e-5, atol=1e-6)
 
     # 前向传播
     out_my = my_fc.forward(X_np)
@@ -55,10 +52,14 @@ def test_linear(batch_size, in_feat, out_feat):
     dB_pt = pt_fc.bias.grad.detach().numpy()
 
     # 自定义模型的梯度
-    dW_my = my_fc.gradients["W"]
-    dB_my = my_fc.gradients["b"].squeeze()
+    dW_my = my_fc.parameters["W"].grad
+    dB_my = my_fc.parameters["b"].grad.squeeze()
 
     # 检查梯度是否一致
     np.testing.assert_allclose(dX_my, dX_pt, rtol=1e-5, atol=1e-6)
     np.testing.assert_allclose(dW_my, dW_pt, rtol=1e-5, atol=1e-6)
     np.testing.assert_allclose(dB_my, dB_pt, rtol=1e-5, atol=1e-6)
+
+
+if __name__ == "__main__":
+    test_linear(32, 10, 2)

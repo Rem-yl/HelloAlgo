@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from typing import Optional
+from typing import Dict, Optional
+
+from ..param import Parameter
 
 
 class LayerBase(ABC):
@@ -11,10 +13,8 @@ class LayerBase(ABC):
 
     def __init__(self):
         """An abstract base class inherited by all neural network layers"""
-        self.X: np.ndarray = None
         self.trainable = True
 
-        self.gradients = {}
         self.parameters = {}
         self.derived_variables = {}
 
@@ -53,14 +53,7 @@ class LayerBase(ABC):
         self.trainable = True
 
     def flush_gradients(self):
-        """Erase all the layer's derived variables and gradients."""
-        assert self.trainable, f"{self.__class__.__name__} is frozen"
-        self.X = None
-        for k, v in self.derived_variables.items():
-            self.derived_variables[k] = []
-
-        for k, v in self.gradients.items():
-            self.gradients[k] = np.zeros_like(v)
+        pass
 
     def update(self, cur_loss=None):
         pass
@@ -86,11 +79,11 @@ class Linear(LayerBase):
     """
 
     def __init__(self, in_feat: int, out_feat: int, init=None):
+        super().__init__()
         self.in_feat = in_feat
         self.out_feat = out_feat
         self.init = init
-        self.parameters = {"W": None, "b": None}
-        super().__init__()
+        self.parameters: Dict[str, Optional[Parameter]] = {"W": None, "b": None}
 
         self._init_params()
 
@@ -98,13 +91,11 @@ class Linear(LayerBase):
         W = np.random.randn(self.out_feat, self.in_feat) * 0.001
         b = np.zeros((1, self.out_feat))
 
-        self.parameters = {"W": W, "b": b}
-        self.derived_variables = {"out": None}
-        self.gradients = {
-            "W": np.zeros_like(W),
-            "b": np.zeros_like(b),
-            "x": None,
-        }
+        W = Parameter(W)
+        b = Parameter(b)
+
+        self.parameters: Dict[str, Optional[Parameter]] = {"W": W, "b": b}
+        self.derived_variables: Dict[str, Optional[Parameter]] = {"logit": None}
 
     @property
     def hyperparameters(self):
@@ -125,17 +116,17 @@ class Linear(LayerBase):
     def forward(self, X: np.ndarray, retain_derived=True) -> np.ndarray:
         self._check_input(X)
 
-        out = self._fwd(X)
+        logit = self._fwd(X)
 
         if retain_derived:
-            self.X = X
-            self.derived_variables["out"] = out
+            self.derived_variables["logit"] = Parameter(logit)
+            self.derived_variables["x"] = Parameter(X)
 
-        return out
+        return logit
 
     def _fwd(self, X: np.ndarray) -> np.ndarray:
-        W = self.parameters["W"]
-        b = self.parameters["b"]
+        W = np.asarray(self.parameters["W"].data)
+        b = np.asarray(self.parameters["b"].data)
 
         out = X @ W.T + b
 
@@ -149,20 +140,21 @@ class Linear(LayerBase):
     def backward(self, dldy: np.ndarray, retain_grads=True):
         assert self.trainable, f"{self.__class__.__name__} is frozen"
 
-        out = self.derived_variables["out"]
-        self._check_grad(dldy, out)
+        x = self.derived_variables["x"].data
+        logit = self.derived_variables["logit"].data
+        self._check_grad(dldy, logit)
 
-        dx, dw, db = self._bwd(dldy, self.X)
+        dx, dw, db = self._bwd(dldy, x)
 
         if retain_grads:
-            self.gradients["W"] += dw
-            self.gradients["b"] += db
-            self.gradients["x"] = dx
+            self.derived_variables["logit"].grad = dx
+            self.parameters["W"].grad += dw
+            self.parameters["b"].grad += db
 
         return dx
 
     def _bwd(self, dldy: np.ndarray, x: np.ndarray):
-        W = self.parameters["W"]
+        W = np.asarray(self.parameters["W"].data)
 
         dx = dldy @ W
         dw = dldy.T @ x
