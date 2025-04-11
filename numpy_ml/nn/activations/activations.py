@@ -81,6 +81,8 @@ class Sigmoid(ActivationBase):
 class ReLU(ActivationBase):
     def __init__(self):
         super().__init__()
+        self.X = None
+        self.gradients = {}
 
     def __str__(self):
         return "ReLU"
@@ -89,13 +91,26 @@ class ReLU(ActivationBase):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
+        self.X = x  # 保存前向输入，用于计算 mask
         return np.maximum(0, x)
 
-    def backward(self, x: np.ndarray):
+    def grad(self, x: np.ndarray):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
-        return (x > 0).astype(int)
+        return np.where(x > 0, 1.0, 0.0)
+
+    def backward(self, grad_in: np.ndarray, retain_grads=True):
+        if self.X is None:
+            raise ValueError("Must call forward before backward")
+
+        mask = (self.X > 0).astype(float)
+        grad_out = grad_in * mask  # 链式法则： dL/dx = dL/dy * dy/dx
+
+        if retain_grads:
+            self.gradients["x"] = grad_out  # 存的是输入 x 对应的梯度
+
+        return grad_out
 
 
 class LeakyReLU(ActivationBase):

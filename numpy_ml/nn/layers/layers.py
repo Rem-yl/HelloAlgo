@@ -2,8 +2,6 @@ from abc import ABC, abstractmethod
 import numpy as np
 from typing import Optional
 
-from ..optimizer import OptimizerBase
-
 
 class LayerBase(ABC):
     """ 所有的输入输出必须是np.ndarray, 不接受任何的列表 
@@ -11,11 +9,10 @@ class LayerBase(ABC):
     Y.shape: [Batch_size, *]
     """
 
-    def __init__(self, optimizer: Optional[OptimizerBase] = None):
+    def __init__(self):
         """An abstract base class inherited by all neural network layers"""
         self.X: np.ndarray = None
         self.trainable = True
-        self.optimizer = optimizer
 
         self.gradients = {}
         self.parameters = {}
@@ -66,12 +63,7 @@ class LayerBase(ABC):
             self.gradients[k] = np.zeros_like(v)
 
     def update(self, cur_loss=None):
-        assert self.trainable, f"{self.__class__.__name__} is frozen"
-        self.optimizer.step()
-        for k, v in self.gradients.items():
-            if k in self.parameters:
-                self.parameters[k] = self.optimizer(self.parameters[k], v, k, cur_loss)
-        self.flush_gradients()
+        pass
 
     def summary(self):
         return {
@@ -93,12 +85,12 @@ class Linear(LayerBase):
         - b.shape: [1, out_feats]
     """
 
-    def __init__(self, in_feat: int, out_feat: int, init=None, optimizer=None):
+    def __init__(self, in_feat: int, out_feat: int, init=None):
         self.in_feat = in_feat
         self.out_feat = out_feat
         self.init = init
         self.parameters = {"W": None, "b": None}
-        super().__init__(optimizer)
+        super().__init__()
 
         self._init_params()
 
@@ -121,11 +113,6 @@ class Linear(LayerBase):
             "param_init": self.init,
             "in_feat": self.in_feat,
             "out_feat": self.out_feat,
-            "optimizer":
-                {
-                    "cache": self.optimizer.cache,
-                    "hyperparameters": self.optimizer.hyperparameters,
-                },
         }
 
     def _check_input(self, x: np.ndarray):
