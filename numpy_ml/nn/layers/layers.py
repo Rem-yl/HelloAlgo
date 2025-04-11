@@ -98,6 +98,13 @@ class Linear(LayerBase):
         self.derived_variables: Dict[str, Optional[Parameter]] = {"logit": None}
 
     @property
+    def params(self):
+        return {
+            "W":np.asarray(self.parameters["W"].data),
+            "b":np.asarray(self.parameters["b"].data),
+        }
+    
+    @property
     def hyperparameters(self):
         return {
             "layer": self.__class__.__name__,

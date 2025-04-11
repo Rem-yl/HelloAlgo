@@ -58,7 +58,7 @@ class FCModel:
         self.hidden_size2 = hidden_size2
         self.output_size = output_size
 
-        self._init_param()
+        # self._init_param()
 
     def __call__(self, X):
         return self.forward(X)
@@ -99,8 +99,8 @@ class FCModel:
     def zero_grad(self):
         for model in self.model_list:
             if isinstance(model, Linear):
-                for k, v in model.gradients.items():
-                    model.gradients[k] = np.zeros_like(v)
+                for param_name, param in model.parameters.items():
+                    param.grad = np.zeros_like(param.grad)
 
     def update(self):
         for model in self.model_list:
@@ -164,12 +164,20 @@ def test_model():
     my_model = FCModel(input_size=X_train.shape[1], hidden_size1=10, hidden_size2=4, output_size=1)
     torch_model = TorchModel(input_size=X_train.shape[1], hidden_size1=10, hidden_size2=4, output_size=1)
 
-    np.testing.assert_allclose(my_model.linear1.parameters["W"], torch_model.linear1.weight.detach().numpy())
-    np.testing.assert_allclose(my_model.linear2.parameters["W"], torch_model.linear2.weight.detach().numpy())
-    np.testing.assert_allclose(my_model.linear3.parameters["W"], torch_model.linear3.weight.detach().numpy())
-    np.testing.assert_allclose(my_model.linear1.parameters["b"].squeeze(), torch_model.linear1.bias.detach().numpy())
-    np.testing.assert_allclose(my_model.linear2.parameters["b"].squeeze(), torch_model.linear2.bias.detach().numpy())
-    np.testing.assert_allclose(my_model.linear3.parameters["b"].squeeze(), torch_model.linear3.bias.detach().numpy())
+    with torch.no_grad():
+        torch_model.linear1.weight.copy_(torch.tensor(my_model.linear1.params["W"], dtype=torch.float32))
+        torch_model.linear1.bias.copy_(torch.tensor(my_model.linear1.params["b"].squeeze(), dtype=torch.float32))
+        torch_model.linear2.weight.copy_(torch.tensor(my_model.linear2.params["W"], dtype=torch.float32))
+        torch_model.linear2.bias.copy_(torch.tensor(my_model.linear2.params["b"].squeeze(), dtype=torch.float32))
+        torch_model.linear3.weight.copy_(torch.tensor(my_model.linear3.params["W"], dtype=torch.float32))
+        torch_model.linear3.bias.copy_(torch.tensor(my_model.linear3.params["b"].squeeze(), dtype=torch.float32))
+
+    np.testing.assert_allclose(my_model.linear1.params["W"], torch_model.linear1.weight.detach().numpy())
+    np.testing.assert_allclose(my_model.linear2.params["W"], torch_model.linear2.weight.detach().numpy())
+    np.testing.assert_allclose(my_model.linear3.params["W"], torch_model.linear3.weight.detach().numpy())
+    np.testing.assert_allclose(my_model.linear1.params["b"].squeeze(), torch_model.linear1.bias.detach().numpy())
+    np.testing.assert_allclose(my_model.linear2.params["b"].squeeze(), torch_model.linear2.bias.detach().numpy())
+    np.testing.assert_allclose(my_model.linear3.params["b"].squeeze(), torch_model.linear3.bias.detach().numpy())
     num_samples = X_train.shape[0]
     batch_size = 32
 
@@ -203,37 +211,29 @@ def test_model():
 
             with torch.no_grad():
                 np.testing.assert_allclose(dldy, torch_out.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear3.gradients["W"],
+                np.testing.assert_allclose(my_model.linear3.parameters["W"].grad,
                                            torch_model.linear3.weight.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear3.gradients["W"],
-                                           torch_model.linear3.weight.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear3.gradients["b"][0, :],
+                np.testing.assert_allclose(my_model.linear3.parameters["b"].grad[0, :],
                                            torch_model.linear3.bias.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear3.gradients["b"][0, :],
-                                           torch_model.linear3.bias.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
+
 
                 np.testing.assert_allclose(dldy, torch_model.z3.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
                 np.testing.assert_allclose(
-                    my_model.linear3.gradients["x"], torch_model.a2.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-
+                    my_model.linear3.derived_variables["logit"].grad, torch_model.a2.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
                 np.testing.assert_allclose(
-                    my_model.act2.gradients["x"], torch_model.z2.grad.detach().numpy(), atol=1e-6, rtol=1e-6
+                    my_model.act2.derived_variables["x"].grad, torch_model.z2.grad.detach().numpy(), atol=1e-6, rtol=1e-6
                 )
 
-                np.testing.assert_allclose(my_model.linear2.gradients["W"],
+                np.testing.assert_allclose(my_model.linear2.parameters["W"].grad,
                                            torch_model.linear2.weight.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear2.gradients["W"],
-                                           torch_model.linear2.weight.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear2.gradients["b"][0, :],
-                                           torch_model.linear2.bias.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear2.gradients["b"][0, :],
+                np.testing.assert_allclose(my_model.linear2.parameters["b"].grad[0, :],
                                            torch_model.linear2.bias.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
 
-                np.testing.assert_allclose(my_model.linear1.gradients["W"],
+                np.testing.assert_allclose(my_model.linear1.parameters["W"].grad,
                                            torch_model.linear1.weight.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear1.gradients["W"],
-                                           torch_model.linear1.weight.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear1.gradients["b"][0, :],
+                np.testing.assert_allclose(my_model.linear1.parameters["b"].grad[0, :],
                                            torch_model.linear1.bias.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
-                np.testing.assert_allclose(my_model.linear1.gradients["b"][0, :],
-                                           torch_model.linear1.bias.grad.detach().numpy(), atol=1e-6, rtol=1e-6)
+
+
+if __name__ == "__main__":
+    test_model()

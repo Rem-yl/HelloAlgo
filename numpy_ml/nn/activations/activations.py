@@ -1,7 +1,9 @@
 from math import erf
 from abc import ABC, abstractmethod
+from typing import Optional, Dict
 
 import numpy as np
+from ..param import Parameter
 from ..utils import sigmoid
 
 eps = np.finfo(float).eps
@@ -10,6 +12,7 @@ eps = np.finfo(float).eps
 class ActivationBase(ABC):
     def __init__(self, **kwargs):
         super().__init__()
+        self.derived_variables:Dict[str, Optional[Parameter]] = {"x":None}
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -81,8 +84,6 @@ class Sigmoid(ActivationBase):
 class ReLU(ActivationBase):
     def __init__(self):
         super().__init__()
-        self.X = None
-        self.gradients = {}
 
     def __str__(self):
         return "ReLU"
@@ -91,7 +92,7 @@ class ReLU(ActivationBase):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
-        self.X = x  # 保存前向输入，用于计算 mask
+        self.derived_variables["x"] = Parameter(x)
         return np.maximum(0, x)
 
     def grad(self, x: np.ndarray):
@@ -101,14 +102,16 @@ class ReLU(ActivationBase):
         return np.where(x > 0, 1.0, 0.0)
 
     def backward(self, grad_in: np.ndarray, retain_grads=True):
-        if self.X is None:
+        X = self.derived_variables["x"].data
+
+        if X is None:
             raise ValueError("Must call forward before backward")
 
-        mask = (self.X > 0).astype(float)
-        grad_out = grad_in * mask  # 链式法则： dL/dx = dL/dy * dy/dx
+        mask = np.where(X > 0, 1.0, 0.0)
+        grad_out = grad_in * mask  
 
         if retain_grads:
-            self.gradients["x"] = grad_out  # 存的是输入 x 对应的梯度
+            self.derived_variables["x"].grad = grad_out
 
         return grad_out
 
