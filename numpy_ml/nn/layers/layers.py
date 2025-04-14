@@ -15,8 +15,8 @@ class LayerBase(ABC):
         """An abstract base class inherited by all neural network layers"""
         self.trainable = True
 
-        self.parameters = {}
-        self.derived_variables = {}
+        self.parameters: Dict[str, Optional[Parameter]] = {}
+        self.derived_variables: Dict[str, Optional[Parameter]] = {"x": None, "out": None}
 
         super().__init__()
 
@@ -51,12 +51,6 @@ class LayerBase(ABC):
     def unfreeze(self):
         """Unfreeze the layer parameters so they can be updated."""
         self.trainable = True
-
-    def flush_gradients(self):
-        pass
-
-    def update(self, cur_loss=None):
-        pass
 
     def summary(self):
         return {
@@ -95,15 +89,15 @@ class Linear(LayerBase):
         b = Parameter(b)
 
         self.parameters: Dict[str, Optional[Parameter]] = {"W": W, "b": b}
-        self.derived_variables: Dict[str, Optional[Parameter]] = {"logit": None}
+        self.derived_variables: Dict[str, Optional[Parameter]] = {"out": None}
 
     @property
     def params(self):
         return {
-            "W":np.asarray(self.parameters["W"].data),
-            "b":np.asarray(self.parameters["b"].data),
+            "W": np.asarray(self.parameters["W"].data),
+            "b": np.asarray(self.parameters["b"].data),
         }
-    
+
     @property
     def hyperparameters(self):
         return {
@@ -123,13 +117,13 @@ class Linear(LayerBase):
     def forward(self, X: np.ndarray, retain_derived=True) -> np.ndarray:
         self._check_input(X)
 
-        logit = self._fwd(X)
+        out = self._fwd(X)
 
         if retain_derived:
-            self.derived_variables["logit"] = Parameter(logit)
+            self.derived_variables["out"] = Parameter(out)
             self.derived_variables["x"] = Parameter(X)
 
-        return logit
+        return out
 
     def _fwd(self, X: np.ndarray) -> np.ndarray:
         W = np.asarray(self.parameters["W"].data)
@@ -148,13 +142,14 @@ class Linear(LayerBase):
         assert self.trainable, f"{self.__class__.__name__} is frozen"
 
         x = self.derived_variables["x"].data
-        logit = self.derived_variables["logit"].data
-        self._check_grad(dldy, logit)
+        out = self.derived_variables["out"].data
+        self._check_grad(dldy, out)
 
         dx, dw, db = self._bwd(dldy, x)
 
         if retain_grads:
-            self.derived_variables["logit"].grad = dx
+            self.derived_variables["x"].grad = dx
+            self.derived_variables["out"].grad = dldy
             self.parameters["W"].grad += dw
             self.parameters["b"].grad += db
 

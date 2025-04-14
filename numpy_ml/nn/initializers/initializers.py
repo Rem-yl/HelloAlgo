@@ -5,7 +5,7 @@ import numpy as np
 
 from ..activations import (
     ActivationBase,
-    Sigmoid,
+    ReLU
 )
 
 from ..optimizer import (
@@ -36,8 +36,8 @@ class ActivationInitializer(object):
 
     def _init_from_str(self, init: str):
         init = init.lower()
-        if init == "sigmoid":
-            act = Sigmoid()
+        if init == "relu":
+            act = ReLU()
         else:
             raise NotImplementedError(f"activation: {init}")
 
