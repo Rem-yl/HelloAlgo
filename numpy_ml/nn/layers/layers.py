@@ -107,7 +107,7 @@ class Linear(LayerBase):
         self._init_params()
 
     def _init_params(self):
-        W = np.random.randn(self.out_feat, self.in_feat) * 0.001
+        W = np.random.randn(self.out_feat, self.in_feat) * 0.1
         b = np.zeros((1, self.out_feat))
 
         W = Parameter(W)

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict
 
 import numpy as np
+from ..utils import relu, sigmoid
 from ..param import Parameter
 
 eps = np.finfo(float).eps
@@ -33,14 +34,11 @@ class ReLU(ActivationBase):
     def __str__(self):
         return "ReLU"
 
-    def grad(self, x: np.ndarray):
-        return np.maximum(0.0, x)
-
     def forward(self, x: np.ndarray, retain_derived=True):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
-        out = self.grad(x)
+        out = relu(x)
 
         if retain_derived:
             self.derived_variables["x"] = Parameter(x)
@@ -49,13 +47,88 @@ class ReLU(ActivationBase):
         return out
 
     def backward(self, grad_in: np.ndarray, retain_grads=True):
-        X = self.derived_variables["x"].data
+        x = self.derived_variables["x"].data
 
-        if X is None:
+        if x is None:
             raise ValueError("Must call forward before backward")
 
-        mask = np.where(X > 0, 1.0, 0.0)
+        mask = np.where(x > 0, 1.0, 0.0)
         grad_out = grad_in * mask
+
+        if retain_grads:
+            self.derived_variables["x"].grad = grad_out
+            self.derived_variables["out"].grad = grad_in
+
+        return grad_out
+
+
+class Sigmoid(ActivationBase):
+    def __init__(self):
+        super().__init__()
+
+    def __str__(self):
+        return "Sigmoid"
+
+    def forward(self, x: np.ndarray, retain_derived=True):
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+
+        out = sigmoid(x)
+
+        if retain_derived:
+            self.derived_variables["x"] = Parameter(x)
+            self.derived_variables["out"] = Parameter(out)
+
+        return out
+
+    def grad(self, x: np.ndarray):
+        s = sigmoid(x)
+        return s * (1 - s)
+
+    def backward(self, grad_in: np.ndarray, retain_grads=True):
+        x = self.derived_variables["x"].data
+        out = self.derived_variables["out"].data
+
+        if x is None or out is None:
+            raise ValueError("Must call forward before backward")
+
+        grad_out = grad_in * (out * (1 - out))
+
+        if retain_grads:
+            self.derived_variables["x"].grad = grad_out
+            self.derived_variables["out"].grad = grad_in
+
+        return grad_out
+
+
+class LeakyReLU(ActivationBase):
+    def __init__(self, alpha=0.1):
+        super().__init__()
+        self.alpha = alpha
+
+    def __str__(self):
+        return f"LeakyReLU(alpha={self.alpha})"
+
+    def forward(self, x: np.ndarray, retain_derived=True):
+        if x.ndim == 1:
+            x = x.reshape(1, -1)
+
+        out = np.where(x > 0, x, self.alpha*x)
+
+        if retain_derived:
+            self.derived_variables["x"] = Parameter(x)
+            self.derived_variables["out"] = Parameter(out)
+
+        return out
+
+    def backward(self, grad_in: np.ndarray, retain_grads=True):
+        x = self.derived_variables["x"].data
+
+        if x is None:
+            raise ValueError("Must call forward before backward")
+
+        grad_mask = np.where(x > 0, 1.0, self.alpha)
+        grad_out = grad_in * grad_mask
 
         if retain_grads:
             self.derived_variables["x"].grad = grad_out

@@ -3,7 +3,7 @@ import numpy as np
 import torch
 
 
-from nn.activations import ReLU
+from nn.activations import ReLU, Sigmoid, LeakyReLU
 
 
 class ActivationTestCase:
@@ -32,18 +32,24 @@ class ActivationTestCase:
 
 @pytest.mark.parametrize("case", [
     ActivationTestCase("ReLU", ReLU(), torch.nn.ReLU()),
+    ActivationTestCase("Sigmoid", Sigmoid(), torch.nn.Sigmoid()),
+    ActivationTestCase("LeakyReLU", LeakyReLU(0.3), torch.nn.LeakyReLU(0.3)),
 ])
 def test_activation_forward(case):
-    x = np.array([[-1.0, 0.0, 2.0]], dtype=np.float32)
+    np.random.seed(42)
+    x = np.random.randn(10, 5).astype(np.float32)
     out_my, out_torch = case.forward(x)
     np.testing.assert_allclose(out_my, out_torch, rtol=1e-5, atol=1e-6)
 
 
 @pytest.mark.parametrize("case", [
     ActivationTestCase("ReLU", ReLU(), torch.nn.ReLU()),
+    ActivationTestCase("Sigmoid", Sigmoid(), torch.nn.Sigmoid()),
+    ActivationTestCase("LeakyReLU", LeakyReLU(0.3), torch.nn.LeakyReLU(0.3)),
 ])
 def test_activation_backward(case):
-    x = np.array([[-1.0, 0.0, 2.0]], dtype=np.float32)
+    np.random.seed(42)
+    x = np.random.randn(10, 5).astype(np.float32)
     grad_in = np.ones_like(x)
     grad_my, grad_torch = case.backward(x, grad_in)
     np.testing.assert_allclose(grad_my, grad_torch, rtol=1e-5, atol=1e-6)
