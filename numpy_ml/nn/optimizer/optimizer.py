@@ -1,20 +1,21 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 import numpy as np
 
 from ..param import Parameter
 
 
 class OptimizerBase(ABC):
-    def __init__(self, parameters: List[Dict[str, Parameter]], lr: float, lr_scheduler=None):
-        if not isinstance(parameters, List):
-            raise TypeError(f"parameters must be list!")
+    def __init__(self, parameters: Optional[List[Dict[str, Parameter]]], lr: float, lr_scheduler=None):
+        if parameters is None:
+            self.parameters = []
+        else:
+            self.parameters = parameters
 
         self.param_cache = {}
         self.cur_step = 0
         self.hyperparameters = {}
-        self.parameters: List[Dict[str, Parameter]] = parameters
         self.lr_scheduler = lr_scheduler
 
     def reset(self):
@@ -25,7 +26,8 @@ class OptimizerBase(ABC):
     def zero_grad(self):
         for param_dict in self.parameters:
             for _, param in param_dict.items():
-                param.grad = np.zeros_like(param.grad)
+                if param.required_grads:
+                    param.grad = np.zeros_like(param.grad)
 
     @abstractmethod
     def step(self):
@@ -45,7 +47,7 @@ class OptimizerBase(ABC):
 
 class SGD(OptimizerBase):
     def __init__(
-        self, parameters: List[Dict[str, Parameter]], lr=0.01, momentum=0.0, clip_norm=None, lr_scheduler=None
+        self, parameters: List[Dict[str, Parameter]] = None, lr=0.01, momentum=0.0, clip_norm=None, lr_scheduler=None
     ):
         super().__init__(parameters, lr, lr_scheduler)
 
@@ -70,11 +72,10 @@ class SGD(OptimizerBase):
 
         for param_dict in self.parameters:
             for param_name, param in param_dict.items():
-                param_id = f"{param_name}_{id(param)}"
-                # print(f"[SGD] param_name: {param_name}, id: {id(param)}")
-                if param.grad is None:
+                if param.grad is None or param.required_grads is False:
                     continue
 
+                param_id = f"{param_name}_{id(param)}"
                 if param_id not in self.param_cache:
                     self.param_cache[param_id] = np.zeros_like(param.grad)
 

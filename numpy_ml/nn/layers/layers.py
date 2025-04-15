@@ -38,8 +38,17 @@ class LayerBase(ABC):
         raise NotImplementedError
 
     @property
+    @abstractmethod
     def hyperparameters(self):
-        return {}
+        raise NotImplementedError
+
+    @property
+    def params(self):
+        np_param = {}
+        for param_name, param in self.parameters.items():
+            np_param[param_name] = np.asarray(param.data)
+
+        return np_param
 
     def freeze(self):
         """
@@ -47,10 +56,14 @@ class LayerBase(ABC):
         longer be updated.
         """
         self.trainable = False
+        for _, param in self.parameters.items():
+            param.freeze()
 
     def unfreeze(self):
         """Unfreeze the layer parameters so they can be updated."""
         self.trainable = True
+        for _, param in self.parameters.items():
+            param.unfreeze()
 
     def summary(self):
         return {
@@ -58,6 +71,18 @@ class LayerBase(ABC):
             "parameters": self.parameters,
             "hyperparameters": self.hyperparameters,
         }
+
+    def _check_input(self, x: np.ndarray):
+        if not isinstance(x, np.ndarray):
+            raise TypeError("Input type must be numpy array")
+
+        if x.ndim <= 1:
+            raise ValueError("Input dim must > 1")
+
+    def _check_grad(self, dldy: np.ndarray, out: np.ndarray):
+        self._check_input(dldy)
+        if dldy.shape != out.shape:
+            raise ValueError(f"grad.shape: {dldy.shape} != out.shape: {out.shape}")
 
 
 class Linear(LayerBase):
@@ -92,13 +117,6 @@ class Linear(LayerBase):
         self.derived_variables: Dict[str, Optional[Parameter]] = {"out": None}
 
     @property
-    def params(self):
-        return {
-            "W": np.asarray(self.parameters["W"].data),
-            "b": np.asarray(self.parameters["b"].data),
-        }
-
-    @property
     def hyperparameters(self):
         return {
             "layer": self.__class__.__name__,
@@ -106,13 +124,6 @@ class Linear(LayerBase):
             "in_feat": self.in_feat,
             "out_feat": self.out_feat,
         }
-
-    def _check_input(self, x: np.ndarray):
-        if not isinstance(x, np.ndarray):
-            raise TypeError("Input type must be numpy array")
-
-        if x.ndim <= 1:
-            raise ValueError("Input dim must > 1")
 
     def forward(self, X: np.ndarray, retain_derived=True) -> np.ndarray:
         self._check_input(X)
@@ -133,14 +144,7 @@ class Linear(LayerBase):
 
         return out
 
-    def _check_grad(self, dldy: np.ndarray, out: np.ndarray):
-        self._check_input(dldy)
-        if dldy.shape != out.shape:
-            raise ValueError(f"grad.shape: {dldy.shape} != out.shape: {out.shape}")
-
     def backward(self, dldy: np.ndarray, retain_grads=True):
-        assert self.trainable, f"{self.__class__.__name__} is frozen"
-
         x = self.derived_variables["x"].data
         out = self.derived_variables["out"].data
         self._check_grad(dldy, out)

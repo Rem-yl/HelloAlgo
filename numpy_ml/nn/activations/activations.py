@@ -33,11 +33,14 @@ class ReLU(ActivationBase):
     def __str__(self):
         return "ReLU"
 
+    def grad(self, x: np.ndarray):
+        return np.maximum(0.0, x)
+
     def forward(self, x: np.ndarray, retain_derived=True):
         if x.ndim == 1:
             x = x.reshape(1, -1)
 
-        out = np.maximum(0, x)
+        out = self.grad(x)
 
         if retain_derived:
             self.derived_variables["x"] = Parameter(x)

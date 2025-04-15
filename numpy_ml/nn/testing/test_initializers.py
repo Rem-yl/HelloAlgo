@@ -1,7 +1,7 @@
 import pytest
 
 from nn.initializers import ActivationInitializer, OptimizerInitializer
-from nn.activations import Sigmoid
+from nn.activations import ReLU
 from nn.optimizer import (
     OptimizerBase,
     SGD,
@@ -10,14 +10,14 @@ from nn.optimizer import (
 
 class TestActivationInitializer:
     def test_init_with_class_instance(self):
-        act = Sigmoid()
+        act = ReLU()
         initializer = ActivationInitializer(act)
         result = initializer()
-        assert isinstance(result, Sigmoid)
+        assert isinstance(result, ReLU)
 
     def test_init_with_string(self):
-        initializer = ActivationInitializer("sigmoid")()
-        assert isinstance(initializer, Sigmoid)
+        initializer = ActivationInitializer("relu")()
+        assert isinstance(initializer, ReLU)
 
 
 class TestOptimizerInitializer:

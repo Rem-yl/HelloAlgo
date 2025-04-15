@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, roc_auc_score
 
+from copy import deepcopy
 import numpy as np
 from nn.layers import LayerBase, Linear
 from nn.activations import ReLU
@@ -94,10 +95,12 @@ def test_linear_model():
 
     my_model = Model(input_dim=2)
     with torch.no_grad():
-        my_model.linear1.parameters["W"].data = torch_model.linear1.weight.detach().numpy()
-        my_model.linear1.parameters["b"].data = np.expand_dims(torch_model.linear1.bias.detach().numpy(), axis=0)
-        my_model.linear2.parameters["W"].data = torch_model.linear2.weight.detach().numpy()
-        my_model.linear2.parameters["b"].data = np.expand_dims(torch_model.linear2.bias.detach().numpy(), axis=0)
+        my_model.linear1.parameters["W"].data = deepcopy(torch_model.linear1.weight.detach().numpy())
+        my_model.linear1.parameters["b"].data = deepcopy(
+            np.expand_dims(torch_model.linear1.bias.detach().numpy(), axis=0))
+        my_model.linear2.parameters["W"].data = deepcopy(torch_model.linear2.weight.detach().numpy())
+        my_model.linear2.parameters["b"].data = deepcopy(
+            np.expand_dims(torch_model.linear2.bias.detach().numpy(), axis=0))
 
     my_loss_fn = bce_loss_with_logit
     my_optimizer = SGD(my_model.parameters(), lr=0.1)
@@ -114,7 +117,7 @@ def test_linear_model():
         torch_optimizer.zero_grad()
         my_optimizer.zero_grad()
         torch_loss.backward()
-        dldy = (my_out - y_train) / y_train.shape[0]
+        dldy = (sigmoid(my_out) - y_train) / y_train.shape[0]
         my_model.backward(dldy)
 
         torch_optimizer.step()
