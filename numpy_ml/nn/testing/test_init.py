@@ -4,9 +4,10 @@ import torch.nn.init as torch_init
 import pytest
 
 from nn.init import (
-    constant, normal, uniform,
-    xavier_uniform, xavier_normal,
-    kaiming_uniform, kaiming_normal
+    constant_, normal_, uniform_,
+    xavier_uniform_, xavier_normal_,
+    kaiming_uniform_, kaiming_normal_,
+    trunc_normal_
 )
 
 shape = (1000, 500)
@@ -24,7 +25,7 @@ def test_constant(val):
     torch_init.constant_(torch_tensor, val)
 
     np_tensor = np.empty(shape)
-    constant(np_tensor, val)
+    constant_(np_tensor, val)
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
@@ -39,7 +40,7 @@ def test_normal(mean, std):
     torch_init.normal_(torch_tensor, mean=mean, std=std)
 
     np_tensor = np.empty(shape)
-    normal(np_tensor, mean=mean, std=std)
+    normal_(np_tensor, mean=mean, std=std)
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
@@ -54,7 +55,7 @@ def test_uniform(a, b):
     torch_init.uniform_(torch_tensor, a=a, b=b)
 
     np_tensor = np.empty(shape)
-    uniform(np_tensor, a=a, b=b)
+    uniform_(np_tensor, a=a, b=b)
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
@@ -68,7 +69,7 @@ def test_xavier_uniform():
     torch_init.xavier_uniform_(torch_tensor)
 
     np_tensor = np.empty(shape)
-    xavier_uniform(np_tensor)
+    xavier_uniform_(np_tensor)
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
@@ -82,7 +83,7 @@ def test_xavier_normal():
     torch_init.xavier_normal_(torch_tensor)
 
     np_tensor = np.empty(shape)
-    xavier_normal(np_tensor)
+    xavier_normal_(np_tensor)
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
@@ -96,7 +97,7 @@ def test_kaiming_uniform():
     torch_init.kaiming_uniform_(torch_tensor, a=0, mode='fan_in', nonlinearity='relu')
 
     np_tensor = np.empty(shape)
-    kaiming_uniform(np_tensor, a=0, mode='fan_in')
+    kaiming_uniform_(np_tensor, a=0, mode='fan_in')
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
@@ -110,10 +111,28 @@ def test_kaiming_normal():
     torch_init.kaiming_normal_(torch_tensor, a=0, mode='fan_in', nonlinearity='relu')
 
     np_tensor = np.empty(shape)
-    kaiming_normal(np_tensor, a=0, mode='fan_in')
+    kaiming_normal_(np_tensor, a=0, mode='fan_in')
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
 
     assert np.isclose(mean_np, mean_t, rtol=RTOL, atol=ATOL)
     assert np.isclose(std_np, std_t, rtol=RTOL, atol=ATOL)
+
+
+@pytest.mark.parametrize("mean, std, a, b", [
+    (0.0, 1.0, -2.0, 2.0),
+    (0.0, 0.1, -0.2, 0.2),
+    (1.0, 0.5, 0.0, 2.0),
+])
+def test_trunc_normal(mean, std, a, b):
+    x = np.empty(shape)
+    trunc_normal_(x, mean, std, a, b)
+
+    assert np.all(x >= a), "Values below lower bound"
+    assert np.all(x <= b), "Values above upper bound"
+
+    assert np.abs(np.mean(x) - mean) < 0.1
+    assert np.abs(np.std(x) - std) < 0.2
+
+    assert x.shape == shape

@@ -10,8 +10,8 @@ from nn.layers import (
 )
 from nn.activations import ReLU
 from nn.optimizer import SGD
-from nn.param import Parameter
 from nn.utils import sigmoid
+from nn.init import kaiming_normal_
 
 
 def load_binary_data():
@@ -25,7 +25,7 @@ def load_binary_data():
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 
-class IrisBinaryClassifier:
+class TwoLayerClassifier:
     def __init__(self, input_dim: int, hidden_dim: int):
         self.linear1 = Linear(input_dim, hidden_dim)
         self.relu = ReLU()
@@ -34,6 +34,12 @@ class IrisBinaryClassifier:
         self.layer_list = [
             self.linear1, self.relu, self.linear2
         ]
+
+        # self._init_param()
+
+    def _init_param(self):
+        kaiming_normal_(self.linear1.parameters["W"].data)
+        kaiming_normal_(self.linear2.parameters["W"].data)
 
     def __call__(self, x, **kwargs):
         return self.forward(x, **kwargs)
@@ -68,7 +74,7 @@ def bce_loss_with_logit(logits: np.ndarray, y: np.ndarray):
 
 def train():
     X_train, X_test, y_train, y_test = load_binary_data()
-    model = IrisBinaryClassifier(input_dim=30, hidden_dim=16)
+    model = TwoLayerClassifier(input_dim=30, hidden_dim=16)
     optimizer = SGD(model.parameters(), lr=0.1)
     loss_fn = bce_loss_with_logit
     epoch_loss = 0.0
