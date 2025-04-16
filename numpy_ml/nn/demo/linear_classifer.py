@@ -8,10 +8,10 @@ from nn.layers import (
     LayerBase,
     Linear,
 )
-from nn.activations import ReLU
-from nn.optimizer import SGD
+from nn.activations import ReLU, SELU
+from nn.optimizer import SGD, Adam
 from nn.utils import sigmoid
-from nn.init import kaiming_normal_
+from nn.init import kaiming_normal_, lecun_normal_
 
 
 def load_binary_data():
@@ -28,18 +28,24 @@ def load_binary_data():
 class TwoLayerClassifier:
     def __init__(self, input_dim: int, hidden_dim: int):
         self.linear1 = Linear(input_dim, hidden_dim)
-        self.relu = ReLU()
+        # self.relu = ReLU()
+        self.act = SELU()
         self.linear2 = Linear(hidden_dim, 1)
 
         self.layer_list = [
-            self.linear1, self.relu, self.linear2
+            self.linear1, self.act, self.linear2
         ]
 
         # self._init_param()
+        self._init_selu_param()
 
     def _init_param(self):
         kaiming_normal_(self.linear1.parameters["W"].data)
         kaiming_normal_(self.linear2.parameters["W"].data)
+
+    def _init_selu_param(self):
+        lecun_normal_(self.linear1.parameters["W"].data)
+        lecun_normal_(self.linear2.parameters["W"].data)
 
     def __call__(self, x, **kwargs):
         return self.forward(x, **kwargs)
@@ -75,7 +81,8 @@ def bce_loss_with_logit(logits: np.ndarray, y: np.ndarray):
 def train():
     X_train, X_test, y_train, y_test = load_binary_data()
     model = TwoLayerClassifier(input_dim=30, hidden_dim=16)
-    optimizer = SGD(model.parameters(), lr=0.1)
+    # optimizer = SGD(model.parameters(), lr=0.5)
+    optimizer = Adam(model.parameters(), lr=0.01)
     loss_fn = bce_loss_with_logit
     epoch_loss = 0.0
     for epoch in range(30):

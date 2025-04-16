@@ -97,7 +97,7 @@ def test_kaiming_uniform():
     torch_init.kaiming_uniform_(torch_tensor, a=0, mode='fan_in', nonlinearity='relu')
 
     np_tensor = np.empty(shape)
-    kaiming_uniform_(np_tensor, a=0, mode='fan_in')
+    kaiming_uniform_(np_tensor, a=0, mode='fan_in', nonlinearity='relu')
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)
@@ -107,11 +107,13 @@ def test_kaiming_uniform():
 
 
 def test_kaiming_normal():
+    torch.manual_seed(42)
+    np.random.seed(42)
     torch_tensor = torch.empty(shape)
     torch_init.kaiming_normal_(torch_tensor, a=0, mode='fan_in', nonlinearity='relu')
 
     np_tensor = np.empty(shape)
-    kaiming_normal_(np_tensor, a=0, mode='fan_in')
+    kaiming_normal_(np_tensor, a=0, mode='fan_in', nonlinearity='relu')
 
     mean_t, std_t = stats(torch_tensor.numpy())
     mean_np, std_np = stats(np_tensor)

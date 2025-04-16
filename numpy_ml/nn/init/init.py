@@ -164,6 +164,12 @@ def _calculate_fan_in_and_fan_out(x: np.ndarray):
     return fan_in, fan_out
 
 
+def lecun_normal_(x: np.ndarray):
+    fan_in, _ = _calculate_fan_in_and_fan_out(x)
+    std = np.sqrt(1.0 / fan_in)
+    x[:] = np.random.normal(0.0, std, size=x.shape)
+
+
 def xavier_uniform_(x: np.ndarray, gain=1.0):
     fan_in, fan_out = _calculate_fan_in_and_fan_out(x)
     limit = gain * np.sqrt(6.0 / (fan_in + fan_out))
@@ -199,4 +205,4 @@ def kaiming_normal_(x: np.ndarray, a=0, mode="fan_in", nonlinearity="leaky_relu"
     gain = calculate_gain(nonlinearity, a)
     std = gain / math.sqrt(fan)
 
-    x[:] = np.random.normal(loc=0.0, scale=std)
+    x[:] = np.random.normal(loc=0.0, scale=std, size=x.shape)

@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 import pytest
-from nn.optimizer import SGD as MySGD
-from torch.optim import SGD as TorchSGD
+from nn.optimizer import SGD as MySGD, Adam as MyAdam  # ✅ 添加你的Adam实现
+from torch.optim import SGD as TorchSGD, Adam as TorchAdam
 
 
 class OptimizerTestCase:
@@ -67,6 +67,20 @@ class TestOptimizers:
             shape=shape,
             lr=0.05,
             param_name="W"
+        )
+        my_data, torch_data = case.apply_gradients()
+        np.testing.assert_allclose(my_data, torch_data, atol=1e-6, rtol=1e-5)
+
+    @pytest.mark.parametrize("shape", [(4, 2), (2, 1), (1, 5)])
+    def test_adam_vs_torch(self, shape):
+        case = OptimizerTestCase(
+            my_optimizer_cls=MyAdam,
+            torch_optimizer_cls=TorchAdam,
+            shape=shape,
+            lr=0.001,
+            param_name="W",
+            betas=(0.9, 0.999),
+            eps=1e-8
         )
         my_data, torch_data = case.apply_gradients()
         np.testing.assert_allclose(my_data, torch_data, atol=1e-6, rtol=1e-5)
