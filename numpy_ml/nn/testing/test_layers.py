@@ -4,7 +4,7 @@ import torch.nn as nn
 import pytest
 
 from copy import deepcopy
-from nn.layers import Linear, Flatten, BatchNorm2D, BatchNorm1D
+from nn.layers import Linear, Flatten, BatchNorm2D, BatchNorm1D, AdaptiveAvgPool1d
 
 
 @pytest.mark.parametrize("batch_size, in_feat, out_feat", [
@@ -209,6 +209,45 @@ class TestBatchNorm1D:
                                        bn_torch.weight.grad.detach().numpy(), rtol=1e-4, atol=1e-4)
             np.testing.assert_allclose(bn_np.parameters["beta"].grad,
                                        bn_torch.bias.grad.detach().numpy(), rtol=1e-4, atol=1e-4)
+
+
+class TestAdaptiveAvgPool1d:
+    @pytest.mark.parametrize("input_shape, output_size", [
+        ((4, 3, 25), 5),  # N, C, L
+        ((3, 25), 5),     # C, L
+        ((2, 4, 8), 4),
+        ((4, 3, 16), 1),
+    ])
+    def test_adaptive_avg_pool1d_vs_pytorch(self, input_shape, output_size):
+        np.random.seed(0)
+        torch.manual_seed(0)
+
+        # Create input
+        x_np = np.random.randn(*input_shape).astype(np.float32)
+        x_torch = torch.tensor(x_np, dtype=torch.float32, requires_grad=True)
+
+        # Torch pool
+        torch_pool = nn.AdaptiveAvgPool1d(output_size)
+        if x_np.ndim == 2:
+            out_torch = torch_pool(x_torch.unsqueeze(0)).squeeze(0)  # add batch dim
+        else:
+            out_torch = torch_pool(x_torch)
+
+        # Our pool
+        my_pool = AdaptiveAvgPool1d(output_size)
+        out_np = my_pool.forward(x_np.copy())
+
+        # Compare output
+        np.testing.assert_allclose(out_np, out_torch.detach().numpy(), rtol=1e-4, atol=1e-4)
+
+        # Backward test
+        grad_out = np.random.randn(*out_np.shape).astype(np.float32)
+        grad_out_torch = torch.tensor(grad_out, dtype=torch.float32)
+
+        out_torch.backward(grad_out_torch)
+        grad_np = my_pool.backward(grad_out)
+
+        np.testing.assert_allclose(grad_np, x_torch.grad.numpy(), rtol=1e-4, atol=1e-4)
 
 
 if __name__ == "__main__":

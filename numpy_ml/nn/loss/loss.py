@@ -171,3 +171,188 @@ class BCELoss(LossBase):
             raise ValueError(f"Invalid reduction: {self.reduction}")
 
         return grad
+
+
+class L1Loss(LossBase):
+    def __init__(self, reduction: str = 'mean'):
+        super().__init__()
+
+        if reduction not in ["none", "mean", "sum"]:
+            raise ValueError(f"Invalid reduction mode: {reduction}")
+        self.reduction = reduction
+        self.cache = {"x": None, "y": None}
+
+    @property
+    def hyperparameters(self):
+        return {
+            "id": self.__class__.__name__,
+            "reduction": self.reduction,
+        }
+
+    def _check_input(self, x: np.ndarray, y: np.ndarray):
+        if x.shape != y.shape:
+            raise ValueError(f"Input and target must have the same shape. Got {x.shape} vs {y.shape}")
+
+    def forward(self, x: np.ndarray, y: np.ndarray, retain_derived=True):
+        self._check_input(x, y)
+
+        if retain_derived:
+            self.cache["x"], self.cache["y"] = x, y
+
+        loss = np.abs(x-y)
+
+        if self.reduction == "mean":
+            return np.mean(loss)
+        elif self.reduction == "sum":
+            return np.sum(loss)
+        else:
+            return loss
+
+    def backward(self):
+        x, y = self.cache["x"], self.cache["y"]
+        if x is None or y is None:
+            raise ValueError("Make sure forward is called and retain_derived is True before backward.")
+
+        grad = np.where(x > y, 1.0, -1.0)
+        grad[x == y] = 0.0
+
+        if self.reduction == "mean":
+            grad /= x.shape[0]
+
+        return grad
+
+
+class MSELoss(LossBase):
+    def __init__(self, reduction: str = "mean"):
+        super().__init__()
+
+        if reduction not in ["none", "mean", "sum"]:
+            raise ValueError(f"Invalid reduction mode: {reduction}")
+        self.reduction = reduction
+        self.cache = {"x": None, "y": None}
+
+    @property
+    def hyperparameters(self):
+        return {
+            "id": self.__class__.__name__,
+            "reduction": self.reduction,
+        }
+
+    def _check_input(self, x: np.ndarray, y: np.ndarray):
+        if x.shape != y.shape:
+            raise ValueError(f"Input and target must have the same shape. Got {x.shape} vs {y.shape}")
+
+    def forward(self, x: np.ndarray, y: np.ndarray, retain_derived=True):
+        self._check_input(x, y)
+
+        if retain_derived:
+            self.cache["x"], self.cache["y"] = x, y
+
+        loss = (x-y) ** 2
+
+        if self.reduction == "mean":
+            return np.mean(loss)
+        elif self.reduction == "sum":
+            return np.sum(loss)
+        else:
+            return loss
+
+    def backward(self):
+        x, y = self.cache["x"], self.cache["y"]
+        if x is None or y is None:
+            raise ValueError("Make sure forward is called and retain_derived is True before backward.")
+
+        grad = 2 * (x-y)
+
+        if self.reduction == "mean":
+            grad /= x.shape[0]
+
+        return grad
+
+
+class CrossEntropyLoss(LossBase):
+    def __init__(self, reduction: str = "mean", label_smoothing: float = 0.0, ignore_index: int = None):
+        super().__init__()
+
+        if reduction not in ["none", "mean", "sum"]:
+            raise ValueError(f"Invalid reduction mode: {reduction}")
+        self.reduction = reduction
+        self.label_smoothing = label_smoothing
+        self.ignore_index = ignore_index
+        self.cache = {
+            "probs": None,
+            "mask": None,
+            "one_hot": None,
+        }
+
+    @property
+    def hyperparameters(self):
+        return {
+            "id": self.__class__.__name__,
+            "reduction": self.reduction,
+            "label_smoothing": self.label_smoothing,
+            "ignore_index": self.ignore_index,
+        }
+
+    def _check_input(self, logits: np.ndarray, targets: np.ndarray):
+        if logits.ndim != 2:
+            raise ValueError(f"logits must be 2D array of shape [N, C], but got shape {logits.shape}")
+        if targets.ndim != 1:
+            raise ValueError(f"targets must be 1D array of shape [N], but got shape {targets.shape}")
+        if logits.shape[0] != targets.shape[0]:
+            raise ValueError(f"Mismatch between logits and targets batch size: {logits.shape[0]} vs {targets.shape[0]}")
+
+    def forward(self, logits: np.ndarray, targets: np.ndarray, retain_derived=True):
+        self._check_input(logits, targets)
+        N, C = logits.shape
+
+        logits = logits - np.max(logits, axis=1, keepdims=True)  # numerical stability
+        exp_logits = np.exp(logits)
+        # 数值计算技巧: exp(x_i + c) / \sum exp(x_j + c) = exp(x_i) / \sum exp(x_j)
+        probs = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)  # softmax
+
+        one_hot = np.zeros_like(probs)
+        one_hot[np.arange(N), targets] = 1.0
+
+        if self.label_smoothing > 0:
+            one_hot = one_hot * (1 - self.label_smoothing) + self.label_smoothing / C   # 类别加和 = 1
+
+        # ignore_index mask
+        if self.ignore_index is not None:
+            mask = targets != self.ignore_index
+        else:
+            mask = np.ones_like(targets, dtype=bool)
+
+        log_probs = np.log(probs + 1e-12)
+        loss = -np.sum(one_hot * log_probs, axis=1)  # shape: [N]
+        loss = loss[mask]
+
+        if retain_derived:
+            self.cache["probs"] = probs
+            self.cache["mask"] = mask
+            self.cache["one_hot"] = one_hot
+
+        if self.reduction == "mean":
+            return loss.mean()
+        elif self.reduction == "sum":
+            return loss.sum()
+        else:
+            full_loss = np.zeros_like(targets, dtype=np.float32)
+            full_loss[mask] = loss
+            return full_loss
+
+    def backward(self):
+        probs = self.cache["probs"]
+        mask = self.cache["mask"]
+        one_hot = self.cache["one_hot"]
+
+        if probs is None:
+            raise ValueError("forward must be called with retain_derived=True before backward.")
+
+        grad = probs - one_hot  # shape: [N, C]
+        grad[~mask] = 0.0
+
+        if self.reduction == "mean":
+            grad /= mask.sum()
+
+        return grad

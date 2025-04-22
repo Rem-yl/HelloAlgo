@@ -466,3 +466,77 @@ class BatchNorm1D(LayerBase):
             self.derived_variables["out"].grad = dldy
 
         return dX.squeeze(-1) if is_2d else dX
+
+
+class AdaptiveAvgPool1d(LayerBase):
+    r"""
+        Implements AdaptiveAvgPool1d similar to PyTorch:
+        https://pytorch.org/docs/stable/generated/torch.nn.AdaptiveAvgPool1d.html
+
+        Input: (N, C, L_in) or (C, L_in)
+        Output: (N, C, L_out) or (C, L_out)
+    """
+
+    def __init__(self, output_size: int):
+        super().__init__()
+        self.output_size = output_size
+        self._init_params()
+
+    def _init_params(self):
+        self.pool_info = []
+        self.orig_shape = None
+
+    @property
+    def hyperparameters(self):
+        return {
+            "layer": self.__class__.__name__,
+            "output_size": self.output_size
+        }
+
+    def forward(self, X: np.ndarray, retain_derived=True) -> np.ndarray:
+        self.orig_shape = X.shape
+        is_2d = False
+
+        if X.ndim == 2:
+            X = X[np.newaxis, ...]  # (1, C, L)
+            is_2d = True
+        elif X.ndim != 3:
+            raise ValueError(f"Expected input of shape (C, L) or (N, C, L), got {X.shape}")
+
+        N, C, L_in = X.shape
+        L_out = self.output_size
+        stride = L_in / L_out
+        output = np.zeros((N, C, L_out))
+        self.pool_info = []
+
+        for i in range(L_out):
+            start = int(np.floor(i * stride))
+            end = int(np.ceil((i + 1) * stride))
+            output[:, :, i] = X[:, :, start:end].mean(axis=-1)
+            self.pool_info.append((start, end))
+
+        if retain_derived:
+            self.derived_variables["x"] = Parameter(X)
+            self.derived_variables["out"] = Parameter(output)
+
+        return output[0] if is_2d else output
+
+    def backward(self, dldy: np.ndarray, retain_grads=True) -> np.ndarray:
+        X = self.derived_variables["x"].data
+        is_2d = False
+
+        if dldy.ndim == 2:
+            dldy = dldy[np.newaxis, ...]
+            is_2d = True
+
+        dx = np.zeros_like(X)
+
+        for i, (start, end) in enumerate(self.pool_info):
+            size = end - start
+            dx[:, :, start:end] += dldy[:, :, i, np.newaxis] / size
+
+        if retain_grads:
+            self.derived_variables["x"].grad = dx
+            self.derived_variables["out"].grad = dldy
+
+        return dx[0] if is_2d else dx
